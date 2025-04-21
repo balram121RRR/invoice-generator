@@ -2,199 +2,135 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Invoice Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 900px;
-      margin: auto;
-      padding: 20px;
-      background: #f4f4f4;
-    }
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: auto; padding: 20px; background: #f9f9f9; }
     h2 { text-align: center; }
-    input, select, textarea {
-      padding: 6px;
-      width: 100%;
-      margin-bottom: 10px;
-    }
-    table {
-      width: 100%;
-      margin-top: 10px;
-      border-collapse: collapse;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 8px;
-      text-align: center;
-    }
-    button {
-      padding: 10px 20px;
-      margin: 5px 0;
-      cursor: pointer;
-    }
-    .actions {
-      margin-top: 20px;
-    }
-    #logoPreview {
-      max-width: 200px;
-      max-height: 100px;
-      display: block;
-      margin: 10px auto;
-    }
-    #logoUpload {
-      display: none;
-    }
-    #addLogoBtn {
-      display: block;
-      margin: 10px auto;
-    }
+    input, select, textarea { padding: 6px; width: 100%; margin-bottom: 10px; }
+    table { width: 100%; margin-top: 10px; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    button { padding: 10px 20px; margin: 5px 0; cursor: pointer; }
+    .actions { margin-top: 20px; }
+    #logoPreview { max-width: 200px; max-height: 100px; display: block; margin: 10px auto; }
+    #logoUpload { display: none; }
+    #addLogoBtn { display: block; margin: 10px auto; }
   </style>
 </head>
 <body>
 
-  <h2>Invoice Generator</h2>
+<h2>Invoice Generator</h2>
+<img id="logoPreview" alt="" />
+<input type="file" id="logoUpload" accept="image/*" onchange="previewLogo(event)">
+<button id="addLogoBtn" onclick="document.getElementById('logoUpload').click()">Add Logo</button>
 
-  <!-- Hidden Logo Upload -->
-  <img id="logoPreview" alt="" />
-  <input type="file" id="logoUpload" accept="image/*" onchange="previewLogo(event)">
-  <button id="addLogoBtn" onclick="document.getElementById('logoUpload').click()">Add Logo</button>
+<label>Company Name: <input id="companyName"></label>
+<label>Company Address: <textarea id="companyAddress"></textarea></label>
+<label>Client Name: <input id="clientName"></label>
+<label>Client Address: <textarea id="clientAddress"></textarea></label>
+<label>Invoice Number: <input id="invoiceNumber"></label>
+<label>Invoice Date: <input type="date" id="invoiceDate" onchange="autoFillDueDate()"></label>
+<label>Due in (days): <input type="number" id="dueInDays" value="30" onchange="autoFillDueDate()"></label>
+<label>Due Date: <input type="date" id="dueDate"></label>
+<label>Currency: <input id="currency" placeholder="$ or USD"></label>
 
-  <!-- Business Details -->
-  <label>Your Company Name:
-    <input id="companyName" placeholder="e.g. ABC Ltd." />
-  </label>
-  <label>Your Address:
-    <textarea id="companyAddress" rows="2"></textarea>
-  </label>
+<table id="itemsTable">
+  <thead>
+    <tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th><th>Remove</th></tr>
+  </thead>
+  <tbody id="itemsBody"></tbody>
+</table>
+<button onclick="addItem()">Add Item</button>
 
-  <!-- Client Details -->
-  <label>Client Name:
-    <input id="clientName" placeholder="e.g. John Doe" />
-  </label>
-  <label>Client Address:
-    <textarea id="clientAddress" rows="2"></textarea>
-  </label>
+<label>Tax Rate (%): <input type="number" id="taxRate" value="0"></label>
+<label>Discount (%): <input type="number" id="discount" value="0"></label>
+<h3 id="totalDisplay">Total: $0.00</h3>
+<label>Notes: <textarea id="notes"></textarea></label>
 
-  <!-- Invoice Info -->
-  <label>Invoice Number:
-    <input id="invoiceNumber" placeholder="e.g. INV-001" />
-  </label>
-  <label>Invoice Date:
-    <input type="date" id="invoiceDate" />
-  </label>
-  <label>Due Date:
-    <input type="date" id="dueDate" />
-  </label>
-  <label>Currency (symbol or code, e.g. $, €, ₹, USD):
-    <input id="currency" placeholder="$ or USD" />
-  </label>
+<h4>Send Invoice via Email</h4>
+<label>Recipient Email: <input type="email" id="recipientEmail"></label>
+<button onclick="sendEmail()">Send Email</button>
 
-  <!-- Items -->
-  <table id="itemsTable">
-    <thead>
-      <tr>
-        <th>Description</th>
-        <th>Qty</th>
-        <th>Unit Price</th>
-        <th>Total</th>
-        <th>Remove</th>
-      </tr>
-    </thead>
-    <tbody id="itemsBody"></tbody>
-  </table>
-  <button onclick="addItem()">Add Item</button>
+<div class="actions">
+  <button onclick="window.print()">Print</button>
+  <button onclick="downloadExcel()">Export to Excel</button>
+</div>
 
-  <!-- Totals -->
-  <label>Tax Rate (%):
-    <input type="number" id="taxRate" value="0" />
-  </label>
-  <label>Discount (%):
-    <input type="number" id="discount" value="0" />
-  </label>
+<script>
+function addItem() {
+  const row = document.createElement('tr');
+  row.innerHTML = `
+    <td><input class="desc"></td>
+    <td><input type="number" class="qty" value="1" onchange="calculateTotal()"></td>
+    <td><input type="number" class="price" value="0" onchange="calculateTotal()"></td>
+    <td class="line-total">$0.00</td>
+    <td><button onclick="this.closest('tr').remove(); calculateTotal()">✖</button></td>
+  `;
+  document.getElementById('itemsBody').appendChild(row);
+  calculateTotal();
+}
 
-  <h3 id="totalDisplay">Total: $0.00</h3>
+function calculateTotal() {
+  const currency = document.getElementById('currency').value || '$';
+  let subtotal = 0;
+  document.querySelectorAll('#itemsBody tr').forEach(row => {
+    const qty = row.querySelector('.qty').valueAsNumber || 0;
+    const price = row.querySelector('.price').valueAsNumber || 0;
+    const total = qty * price;
+    row.querySelector('.line-total').innerText = currency + total.toFixed(2);
+    subtotal += total;
+  });
+  const tax = subtotal * (parseFloat(document.getElementById('taxRate').value) || 0) / 100;
+  const discount = subtotal * (parseFloat(document.getElementById('discount').value) || 0) / 100;
+  const finalTotal = subtotal + tax - discount;
+  document.getElementById('totalDisplay').innerText = `Total: ${currency}${finalTotal.toFixed(2)}`;
+}
 
-  <!-- Notes -->
-  <label>Notes / Terms:
-    <textarea id="notes" rows="3"></textarea>
-  </label>
+function previewLogo(event) {
+  const reader = new FileReader();
+  reader.onload = e => document.getElementById('logoPreview').src = e.target.result;
+  if (event.target.files[0]) reader.readAsDataURL(event.target.files[0]);
+}
 
-  <!-- Actions -->
-  <div class="actions">
-    <button onclick="window.print()">Print</button>
-    <button onclick="downloadPDF()">Download PDF</button>
-  </div>
+function autoFillDueDate() {
+  const invoiceDateVal = document.getElementById('invoiceDate').value;
+  const days = parseInt(document.getElementById('dueInDays').value) || 0;
+  if (invoiceDateVal) {
+    const invoiceDate = new Date(invoiceDateVal);
+    invoiceDate.setDate(invoiceDate.getDate() + days);
+    document.getElementById('dueDate').value = invoiceDate.toISOString().split('T')[0];
+  }
+}
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script>
-    const itemsBody = document.getElementById("itemsBody");
+function downloadExcel() {
+  const wb = XLSX.utils.book_new();
+  const wsData = [['Description', 'Qty', 'Unit Price', 'Total']];
+  document.querySelectorAll('#itemsBody tr').forEach(row => {
+    const desc = row.querySelector('.desc').value;
+    const qty = row.querySelector('.qty').value;
+    const price = row.querySelector('.price').value;
+    const total = qty * price;
+    wsData.push([desc, qty, price, total]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  XLSX.utils.book_append_sheet(wb, ws, 'Invoice');
+  XLSX.writeFile(wb, 'invoice.xlsx');
+}
 
-    function addItem() {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td><input class="desc" placeholder="Item" /></td>
-        <td><input type="number" class="qty" value="1" onchange="calculateTotal()" /></td>
-        <td><input type="number" class="price" value="0" onchange="calculateTotal()" /></td>
-        <td class="line-total">$0.00</td>
-        <td><button onclick="this.closest('tr').remove(); calculateTotal()">✖</button></td>
-      `;
-      itemsBody.appendChild(row);
-    }
+function sendEmail() {
+  emailjs.init("YOUR_USER_ID_HERE");
+  const toEmail = document.getElementById('recipientEmail').value;
+  const body = `Invoice from ${document.getElementById('companyName').value}\n\nTotal: ${document.getElementById('totalDisplay').innerText}`;
+  emailjs.send("default_service", "YOUR_TEMPLATE_ID", {
+    to_email: toEmail,
+    message: body,
+  }).then(() => alert('Invoice sent successfully!'), err => alert('Send failed: ' + err));
+}
 
-    function calculateTotal() {
-      const currency = document.getElementById("currency").value || "$";
-      let subtotal = 0;
-      document.querySelectorAll("#itemsBody tr").forEach(row => {
-        const qty = row.querySelector(".qty").valueAsNumber || 0;
-        const price = row.querySelector(".price").valueAsNumber || 0;
-        const lineTotal = qty * price;
-        row.querySelector(".line-total").innerText = currency + lineTotal.toFixed(2);
-        subtotal += lineTotal;
-      });
-
-      const taxRate = parseFloat(document.getElementById("taxRate").value) || 0;
-      const discount = parseFloat(document.getElementById("discount").value) || 0;
-
-      const tax = subtotal * (taxRate / 100);
-      const discountAmount = subtotal * (discount / 100);
-      const total = subtotal + tax - discountAmount;
-
-      document.getElementById("totalDisplay").innerText = `Total: ${currency}${total.toFixed(2)}`;
-    }
-
-    function previewLogo(event) {
-      const file = event.target.files[0];
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        document.getElementById("logoPreview").src = e.target.result;
-      };
-      if (file) reader.readAsDataURL(file);
-    }
-
-    async function downloadPDF() {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      let y = 10;
-
-      const logo = document.getElementById("logoPreview");
-      if (logo.src) {
-        const imgProps = doc.getImageProperties(logo);
-        const imgWidth = 50;
-        const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-        doc.addImage(logo, 'PNG', 10, y, imgWidth, imgHeight);
-        y += imgHeight + 10;
-      }
-
-      doc.setFontSize(12);
-      doc.text(`Company: ${document.getElementById("companyName").value}`, 10, y += 10);
-      doc.text(`Client: ${document.getElementById("clientName").value}`, 10, y += 10);
-      doc.text(document.getElementById("totalDisplay").innerText, 10, y += 10);
-      doc.save("invoice.pdf");
-    }
-
-    addItem(); // Add initial item row
-  </script>
+addItem();
+</script>
 
 </body>
 </html>
