@@ -36,21 +36,11 @@
     .actions {
       margin-top: 20px;
     }
-    .logo-preview {
-      max-width: 150px;
-      margin-bottom: 10px;
-    }
   </style>
 </head>
 <body>
 
   <h2>Invoice Generator</h2>
-
-  <!-- Logo Upload -->
-  <label>Upload Logo:
-    <input type="file" id="logoInput" accept="image/*">
-  </label>
-  <img id="logoPreview" class="logo-preview" style="display:none;" />
 
   <!-- Business Details -->
   <label>Your Company Name:
@@ -177,16 +167,6 @@
       doc.text(document.getElementById("totalDisplay").innerText, 10, 40);
       doc.save("invoice.pdf");
     }
-
-    document.getElementById("logoInput").addEventListener("change", function() {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const logo = document.getElementById("logoPreview");
-        logo.src = e.target.result;
-        logo.style.display = "block";
-      };
-      reader.readAsDataURL(this.files[0]);
-    });
 
     addItem(); // Initial row
   </script>
