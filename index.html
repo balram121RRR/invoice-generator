@@ -36,11 +36,29 @@
     .actions {
       margin-top: 20px;
     }
+    #logoPreview {
+      max-width: 200px;
+      max-height: 100px;
+      display: block;
+      margin: 10px auto;
+    }
+    #logoUpload {
+      display: none;
+    }
+    #addLogoBtn {
+      display: block;
+      margin: 10px auto;
+    }
   </style>
 </head>
 <body>
 
   <h2>Invoice Generator</h2>
+
+  <!-- Hidden Logo Upload -->
+  <img id="logoPreview" alt="" />
+  <input type="file" id="logoUpload" accept="image/*" onchange="previewLogo(event)">
+  <button id="addLogoBtn" onclick="document.getElementById('logoUpload').click()">Add Logo</button>
 
   <!-- Business Details -->
   <label>Your Company Name:
@@ -68,14 +86,8 @@
   <label>Due Date:
     <input type="date" id="dueDate" />
   </label>
-  <label>Currency:
-    <select id="currency">
-      <option value="$">USD ($)</option>
-      <option value="€">EUR (€)</option>
-      <option value="£">GBP (£)</option>
-      <option value="₹">INR (₹)</option>
-      <option value="¥">JPY (¥)</option>
-    </select>
+  <label>Currency (symbol or code, e.g. $, €, ₹, USD):
+    <input id="currency" placeholder="$ or USD" />
   </label>
 
   <!-- Items -->
@@ -89,9 +101,7 @@
         <th>Remove</th>
       </tr>
     </thead>
-    <tbody id="itemsBody">
-      <!-- Rows inserted by JS -->
-    </tbody>
+    <tbody id="itemsBody"></tbody>
   </table>
   <button onclick="addItem()">Add Item</button>
 
@@ -112,11 +122,10 @@
 
   <!-- Actions -->
   <div class="actions">
-    <button onclick="print()">Print</button>
+    <button onclick="window.print()">Print</button>
     <button onclick="downloadPDF()">Download PDF</button>
   </div>
 
-  <!-- Scripts -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script>
     const itemsBody = document.getElementById("itemsBody");
@@ -134,7 +143,7 @@
     }
 
     function calculateTotal() {
-      const currency = document.getElementById("currency").value;
+      const currency = document.getElementById("currency").value || "$";
       let subtotal = 0;
       document.querySelectorAll("#itemsBody tr").forEach(row => {
         const qty = row.querySelector(".qty").valueAsNumber || 0;
@@ -154,21 +163,37 @@
       document.getElementById("totalDisplay").innerText = `Total: ${currency}${total.toFixed(2)}`;
     }
 
-    function print() {
-      window.print();
+    function previewLogo(event) {
+      const file = event.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById("logoPreview").src = e.target.result;
+      };
+      if (file) reader.readAsDataURL(file);
     }
 
     async function downloadPDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
-      doc.text("Invoice", 10, 10);
-      doc.text(`Company: ${document.getElementById("companyName").value}`, 10, 20);
-      doc.text(`Client: ${document.getElementById("clientName").value}`, 10, 30);
-      doc.text(document.getElementById("totalDisplay").innerText, 10, 40);
+      let y = 10;
+
+      const logo = document.getElementById("logoPreview");
+      if (logo.src) {
+        const imgProps = doc.getImageProperties(logo);
+        const imgWidth = 50;
+        const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+        doc.addImage(logo, 'PNG', 10, y, imgWidth, imgHeight);
+        y += imgHeight + 10;
+      }
+
+      doc.setFontSize(12);
+      doc.text(`Company: ${document.getElementById("companyName").value}`, 10, y += 10);
+      doc.text(`Client: ${document.getElementById("clientName").value}`, 10, y += 10);
+      doc.text(document.getElementById("totalDisplay").innerText, 10, y += 10);
       doc.save("invoice.pdf");
     }
 
-    addItem(); // Initial row
+    addItem(); // Add initial item row
   </script>
 
 </body>
